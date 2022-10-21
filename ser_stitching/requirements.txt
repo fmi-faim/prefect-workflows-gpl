@@ -1,0 +1,9 @@
+# from PyPI
+ncempy
+prefect
+scikit-image
+scipy
+
+# from Git URLs
+
+em-tasks @ git+https://github.com/fmi-faim/em-tasks@v0.3.0
