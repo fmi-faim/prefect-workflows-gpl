@@ -10,8 +10,16 @@ from em_tasks.export import (
 from em_tasks.stitch import stitch_tiles
 from pathlib import Path
 from prefect import task, unmapped, flow, get_run_logger
+from prefect.filesystems import LocalFileSystem
 
 TILE_CONF_NAME = "TileConfiguration.txt"
+
+
+@task()
+def get_base_output_directory_task():
+    # TODO migrate this upstream into a common library
+    block = LocalFileSystem.load("base-output-directory")
+    return block.basepath
 
 
 @task()
@@ -68,9 +76,13 @@ def path_join_task(folder, file):
     return os.path.join(folder, file)
 
 
-@flow(name="Export and Stitch .ser data")
-def export_and_stitch(input_dir=r'/path/to/input/dir', filename_filter="*.ser", save_dir=r'/path/to/output/dir',
+@flow(name="Export and Stitch .ser data", persist_result=False)
+def export_and_stitch(input_dir=r'/path/to/input/dir', filename_filter="*.ser", group_id="group", user_id="username",
                       intensity_range=1000):
+    base_dir = get_base_output_directory_task()
+    if not Path(base_dir, group_id).exists():
+        raise ValueError
+    save_dir = Path(base_dir, group_id, user_id, Path(input_dir).name)
     files = get_files_task(input_dir=input_dir, filename_filter=filename_filter)
     metadata_list = export_task.map(ser_file=files, save_dir=unmapped(save_dir),
                                     intensity_range=unmapped(intensity_range))
@@ -86,6 +98,7 @@ def export_and_stitch(input_dir=r'/path/to/input/dir', filename_filter="*.ser", 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_dir", type=str)
-    parser.add_argument("--save_dir", type=str)
+    parser.add_argument("--group_id", type=str)
+    parser.add_argument("--user_id", type=str)
     args = parser.parse_args()
-    export_and_stitch(input_dir=args.input_dir, save_dir=args.save_dir)
+    export_and_stitch(input_dir=args.input_dir, group_id=args.group_id, user_id=args.user_id)
